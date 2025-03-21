@@ -49,11 +49,14 @@ class WeatherAlert(models.Model):
         ('storm', 'Storm'),
         ('flood', 'Flood'),
         ('extreme_temperature', 'Extreme Temperature'),
+        ('fog', 'Dense Fog'),  # Thêm sương mù dày đặc
     ]
 
     location = models.ForeignKey(Location, on_delete=models.CASCADE)
     alert_type = models.CharField(max_length=50, choices=ALERT_TYPES)
     message = models.TextField()
+    severity = models.CharField(max_length=20, choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High')], default='medium')
+    recommendation = models.TextField(blank=True, null=True)  # Khuyến nghị an toàn
     issued_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

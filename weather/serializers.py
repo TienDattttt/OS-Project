@@ -1,7 +1,7 @@
 # weather/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Location, CurrentWeather, Forecast, NewsArticle, UserProfile
+from .models import Location, CurrentWeather, Forecast, NewsArticle, UserProfile, WeatherAlert
 
 
 
@@ -97,3 +97,10 @@ class UserLoginSerializer(serializers.Serializer):
         
         data['user'] = user
         return data
+    
+class WeatherAlertSerializer(serializers.ModelSerializer):
+    location = LocationSerializer(read_only=True)
+
+    class Meta:
+        model = WeatherAlert
+        fields = ['id', 'location', 'alert_type', 'message', 'severity', 'recommendation', 'issued_at']

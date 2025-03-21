@@ -2,6 +2,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 from datetime import datetime
+from .models import WeatherAlert
 
 
 def geocode_location(location_name):
@@ -93,3 +94,178 @@ def fetch_forecast(lat, lon):
         return forecasts
     return None
 
+# def check_weather_alerts(location, current_weather_data, forecast_data=None):
+#     alerts = []
+
+#     # Dữ liệu thời tiết hiện tại
+#     temp = current_weather_data.get('temperature', 0)
+#     wind_speed = current_weather_data.get('wind_speed', 0)
+#     humidity = current_weather_data.get('humidity', 0)
+#     condition = current_weather_data.get('weather_condition', '').lower()
+
+#     # 1. Bão (Storm) 
+#     if wind_speed > 20 or 'storm' in condition or 'thunderstorm' in condition:
+#         alerts.append({
+#             'alert_type': 'storm',
+#             'message': f"Storm warning in {location.name}: High winds ({wind_speed} m/s) or stormy conditions detected.",
+#             'severity': 'high' if wind_speed > 25 else 'medium',
+#             'recommendation': 'Stay indoors, secure outdoor objects, and avoid travel.'
+#         })
+        
+
+#     # 2. Nhiệt độ khắc nghiệt (Extreme Temperature)
+#     if temp > 40:
+#         alerts.append({
+#             'alert_type': 'extreme_temperature',
+#             'message': f"Extreme heat warning in {location.name}: Temperature reached {temp}°C.",
+#             'severity': 'high',
+#             'recommendation': 'Stay hydrated, avoid outdoor activities during peak heat.'
+#         })
+#     elif temp < -10:
+#         alerts.append({
+#             'alert_type': 'extreme_temperature',
+#             'message': f"Extreme cold warning in {location.name}: Temperature dropped to {temp}°C.",
+#             'severity': 'high',
+#             'recommendation': 'Dress warmly, limit outdoor exposure.'
+#         })
+
+#     # 3. Sương mù dày đặc (Dense Fog)
+#     if 'fog' in condition and humidity > 90:
+#         alerts.append({
+#             'alert_type': 'fog',
+#             'message': f"Dense fog warning in {location.name}: Low visibility due to high humidity ({humidity}%).",
+#             'severity': 'medium',
+#             'recommendation': 'Drive slowly, use fog lights, and avoid unnecessary travel.'
+#         })
+
+#     # 4. Nguy cơ lũ (Flood) - Dựa trên dự báo
+#     if forecast_data:
+#         max_rain_prob = max(item.get('rain_probability', 0) for item in forecast_data)
+#         if max_rain_prob > 80:
+#             alerts.append({
+#                 'alert_type': 'flood',
+#                 'message': f"Flood risk in {location.name}: High rain probability ({max_rain_prob}%) expected.",
+#                 'severity': 'high',
+#                 'recommendation': 'Avoid low-lying areas, prepare emergency supplies.'
+#             })
+
+#     # Lưu hoặc cập nhật cảnh báo vào DB
+#     existing_alerts = WeatherAlert.objects.filter(location=location)
+#     for alert in alerts:
+#         # Kiểm tra xem cảnh báo đã tồn tại chưa, nếu có thì cập nhật
+#         existing = existing_alerts.filter(alert_type=alert['alert_type']).first()
+#         if existing:
+#             existing.message = alert['message']
+#             existing.severity = alert['severity']
+#             existing.recommendation = alert['recommendation']
+#             existing.save()
+#         else:
+#             WeatherAlert.objects.create(
+#                 location=location,
+#                 alert_type=alert['alert_type'],
+#                 message=alert['message'],
+#                 severity=alert['severity'],
+#                 recommendation=alert['recommendation']
+#             )
+    
+#     # Trả về danh sách cảnh báo hiện tại
+#     return existing_alerts
+
+def check_weather_alerts(location, current_weather_data, forecast_data=None):
+    # Khởi tạo danh sách thông báo
+    alerts = []
+
+    # Lấy dữ liệu thời tiết hiện tại
+    temp = current_weather_data.get('temperature', 0)
+    wind_speed = current_weather_data.get('wind_speed', 0)
+    humidity = current_weather_data.get('humidity', 0)
+    condition = current_weather_data.get('weather_condition', '').lower()
+
+    # Hàm phụ để thêm thông báo
+    def add_alert(alert_type, message, severity=None, recommendation=None):
+        alert = {'alert_type': alert_type, 'message': message}
+        if severity:
+            alert['severity'] = severity
+        if recommendation:
+            alert['recommendation'] = recommendation
+        alerts.append(alert)
+
+    # Kiểm tra điều kiện nguy hiểm
+    is_dangerous = False
+
+    # 1. Bão (Storm)
+    if wind_speed > 20 or 'storm' in condition or 'thunderstorm' in condition:
+        is_dangerous = True
+        add_alert(
+            'storm',
+            f"Storm warning in {location.name}: High winds ({wind_speed} m/s) or stormy conditions detected.",
+            'high' if wind_speed > 25 else 'medium',
+            'Stay indoors, secure outdoor objects, and avoid travel.'
+        )
+
+    # 2. Nhiệt độ khắc nghiệt (Extreme Temperature)
+    if temp > 40:
+        is_dangerous = True
+        add_alert(
+            'extreme_temperature',
+            f"Extreme heat warning in {location.name}: Temperature reached {temp}°C.",
+            'high',
+            'Stay hydrated, avoid outdoor activities during peak heat.'
+        )
+    elif temp < -10:
+        is_dangerous = True
+        add_alert(
+            'extreme_temperature',
+            f"Extreme cold warning in {location.name}: Temperature dropped to {temp}°C.",
+            'high',
+            'Dress warmly, limit outdoor exposure.'
+        )
+
+    # 3. Sương mù dày đặc (Dense Fog)
+    if 'fog' in condition and humidity > 90:
+        is_dangerous = True
+        add_alert(
+            'fog',
+            f"Dense fog warning in {location.name}: Low visibility due to high humidity ({humidity}%).",
+            'medium',
+            'Drive slowly, use fog lights, and avoid unnecessary travel.'
+        )
+
+    # 4. Nguy cơ lũ (Flood) - Dựa trên dự báo
+    if forecast_data:
+        max_rain_prob = max(item.get('rain_probability', 0) for item in forecast_data)
+        if max_rain_prob > 80:
+            is_dangerous = True
+            add_alert(
+                'flood',
+                f"Flood risk in {location.name}: High rain probability ({max_rain_prob}%) expected.",
+                'high',
+                'Avoid low-lying areas, prepare emergency supplies.'
+            )
+
+    # Nếu không có điều kiện nguy hiểm, thêm gợi ý hoạt động
+    if not is_dangerous:
+        # Đảm bảo luôn có thông báo gợi ý nếu thời tiết đẹp
+        add_alert(
+            'good_weather',
+            f"Great weather in {location.name}: Temperature at {temp}°C, {condition}.",
+            'low',
+            'Perfect day for outdoor activities like hiking or picnicking!'
+        )
+
+    # Xóa các cảnh báo cũ trong DB cho vị trí này
+    WeatherAlert.objects.filter(location=location).delete()
+
+    # Lưu các thông báo mới vào DB
+    for alert in alerts:
+        WeatherAlert.objects.create(
+            location=location,
+            alert_type=alert['alert_type'],
+            message=alert['message'],
+            severity=alert.get('severity', 'low'),
+            recommendation=alert.get('recommendation', ''),
+            issued_at=timezone.now()
+        )
+
+    # Trả về các thông báo hiện tại từ DB
+    return alerts
